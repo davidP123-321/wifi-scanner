@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WiFi Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --card2: #1f2937;
+      --accent: #3b82f6;
+      --accent2: #22c55e;
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      padding: 18px;
+    }
+
+    h1 {
+      text-align: center;
+      margin: 0 0 18px;
+      font-size: 28px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    }
+
+    .info-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 15px;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .device, .network {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    .device:last-child, .network:last-child {
+      border-bottom: none;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(59,130,246,0.15);
+      color: #bfdbfe;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), #1d4ed8);
+      color: white;
+      padding: 14px 16px;
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 6px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <h1>WiFi Dashboard</h1>
+
+  <div class="card">
+    <div id="status" class="info-grid">Chargement...</div>
+  </div>
+
+  <div class="card">
+    <h2>Réseaux Wi‑Fi</h2>
+    <div id="wifi-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>Appareils du réseau</h2>
+    <div id="devices-list"></div>
+  </div>
+
+  <button onclick="refresh()">Actualiser</button>
+
+  <script>
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    }
+
+    function renderStatus(data) {
+      const el = document.getElementById('status');
+      if (!data) {
+        el.innerHTML = '<div class="empty">Impossible de charger le statut.</div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="info-row"><span>Heure</span><strong>${data.time || 'N/A'}</strong></div>
+        <div class="info-row"><span>IP locale</span><strong>${data.local_ip || 'N/A'}</strong></div>
+        <div class="info-row"><span>Plage réseau</span><strong>${data.network || 'N/A'}</strong></div>
+      `;
+    }
+
+    function renderWifi(wifiData) {
+      const container = document.getElementById('wifi-list');
+      const wifi = wifiData && wifiData.wifi ? wifiData.wifi : [];
+
+      if (!wifi.length) {
+        container.innerHTML = '<div class="empty">Aucun réseau Wi‑Fi détecté.</div>';
+        return;
+      }
+
+      container.innerHTML = wifi.map((net, i) => `
+        <div class="network">
+          <span class="badge">Réseau ${i + 1}</span><br>
+          <strong>${net.ssid || 'Inconnu'}</strong><br>
+          Signal: ${net.signal || 'N/A'}<br>
+          Canal: ${net.channel || 'N/A'}<br>
+          BSSID: ${net.bssid || 'N/A'}<br>
+          Type: ${net.radio || 'N/A'}<br>
+          Auth: ${net.auth || 'N/A'}<br>
+          Chiffrement: ${net.encryption || 'N/A'}
+        </div>
+      `).join('');
+    }
+
+    function renderDevices(devData) {
+      const container = document.getElementById('devices-list');
+      const devices = devData && devData.devices ? devData.devices : [];
+
+      if (!devices.length) {
+        container.innerHTML = '<div class="empty">Aucun appareil détecté.</div>';
+        return;
+      }
+
+      container.innerHTML = devices.map((d, i) => `
+        <div class="device">
+          <strong>${i + 1}. ${d.ip || 'Inconnu'}</strong><br>
+          MAC: ${d.mac || 'unknown'}<br>
+          Source: ${d.source || 'N/A'}<br>
+          En ligne: ${d.online ? 'Oui' : 'Non'}
+        </div>
+      `).join('');
+    }
+
+    async function refresh() {
+      try {
+        const status = await fetchJSON('/api/status');
+        renderStatus(status);
+
+        const wifi = await fetchJSON('/api/wifi');
+        renderWifi(wifi);
+
+        const devices = await fetchJSON('/api/devices');
+        renderDevices(devices);
+      } catch (e) {
+        document.getElementById('status').innerHTML = '<div class="empty">Erreur de connexion au serveur.</div>';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>
